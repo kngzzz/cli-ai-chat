@@ -24,6 +24,13 @@ Your AI coding assistant, right inside Obsidian.
 3. Click **Install**, then **Enable**
 4. Configure your Claude Code binary path in plugin settings
 
+### Beta Installation (BRAT)
+
+1. Install [BRAT](https://github.com/TfTHacker/obsidian42-brat) from Community Plugins
+2. Open BRAT settings → **Add Beta Plugin**
+3. Enter `kngzzz/cli-ai-chat`
+4. Enable the plugin in Community Plugins settings
+
 ### Requirements
 
 - [Claude Code CLI](https://claude.ai/code) installed and authenticated
