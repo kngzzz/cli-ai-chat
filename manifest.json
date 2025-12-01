@@ -1,0 +1,12 @@
+{
+  "id": "cli-ai-chat",
+  "name": "Claude Code Chat",
+  "version": "1.0.0",
+  "minAppVersion": "1.5.0",
+  "description": "Chat with Claude Code CLI from a side pane in Obsidian. Features streaming responses, model selector, markdown rendering, and @ mention file autocomplete.",
+  "author": "kngzzz",
+  "authorUrl": "https://github.com/kngzzz",
+
+  "isDesktopOnly": true
+}
+

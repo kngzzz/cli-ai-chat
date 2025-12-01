@@ -1,0 +1,28 @@
+# Node modules
+node_modules/
+
+# Obsidian workspace settings
+.obsidian/
+
+# Build artifacts
+*.map
+main.js
+styles.css
+
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE settings
+.vscode/
+.idea/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local

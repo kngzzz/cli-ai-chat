@@ -1,0 +1,30 @@
+{
+  "name": "obsidian-cli-ai-chat",
+  "version": "1.0.0",
+  "description": "Obsidian plugin to chat with OpenCode and Claude Code via local CLI.",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "node esbuild.config.mjs production",
+    "test": "vitest run",
+    "version": "node version-bump.mjs"
+  },
+  "keywords": [
+    "obsidian",
+    "plugin",
+    "opencode",
+    "claude",
+    "cli",
+    "chat"
+  ],
+  "author": "kngzzz",
+
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.24.0",
+    "obsidian": "^1.6.0",
+    "typescript": "^5.6.0",
+    "vitest": "^0.34.6"
+  }
+}
