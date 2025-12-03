@@ -9,10 +9,14 @@ export function buildChatPrompt(
 
   for (let i = history.length - 1; i >= 0 && recent.length < maxHistory; i--) {
     const msg = history[i];
-    if (msg.role === "user" || msg.role === "assistant") {
+    const metaKind = (msg.meta as { kind?: string } | undefined)?.kind;
+    const isDialogue = msg.role === "user" || msg.role === "assistant";
+    const isContextual = metaKind === "context" || metaKind === "sample" || metaKind === "tool_summary";
+    if (isDialogue && !isContextual) {
       recent.unshift(msg);
     }
   }
+
 
   const lines: string[] = ["You are an AI coding assistant.", ""];
 

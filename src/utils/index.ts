@@ -2,6 +2,7 @@ import { App, FileSystemAdapter } from "obsidian";
 import { BINARY_NAME_REGEX } from "../types";
 
 export function stripAnsi(text: string): string {
+  // eslint-disable-next-line no-control-regex -- Required to match ANSI escape sequences
   return text.replace(/\u001b\[[0-9;]*[A-Za-z]/g, "");
 }
 

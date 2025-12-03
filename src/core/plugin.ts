@@ -8,6 +8,8 @@ import {
   ChatSettings,
   DEFAULT_SETTINGS,
   VIEW_TYPE_CLI_CHAT,
+  ProcessHandle,
+  ToolEventCallback,
 } from "../types";
 import {
   getVaultPath,
@@ -55,8 +57,8 @@ export default class ChatPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "open-cli-ai-chat",
-      name: "Open CLI AI Chat",
+      id: "open-view",
+      name: "Open view",
       callback: () => this.activateView(),
     });
 
@@ -135,10 +137,21 @@ export default class ChatPlugin extends Plugin {
   }
 
   private buildClaudeStreamSpawnConfig(cwd: string | null): ClaudeSpawnConfig | { error: string } {
-    const binary = this.resolveBinary(
-      this.settings.claudeBinary,
-      DEFAULT_SETTINGS.claudeBinary,
-    );
+    const shellMode = this.settings.shellMode ?? "native";
+    const preferredBinary = this.settings.claudeBinary?.trim?.() || DEFAULT_SETTINGS.claudeBinary;
+
+    const binary = shellMode === "wsl"
+      ? this.resolveBinaryInWsl(preferredBinary)
+      : this.resolveBinary(preferredBinary, DEFAULT_SETTINGS.claudeBinary);
+
+    if (shellMode === "wsl" && !binary) {
+      return {
+        error: `Could not find \"${preferredBinary}\" in WSL PATH. Set Binary to a full path or install the CLI in WSL.`,
+      };
+    }
+
+    const resolvedBinary = binary || preferredBinary;
+
     const extraArgsRaw = this.settings.claudeExtraArgs ?? "";
     const extraArgs = extraArgsRaw
       .split(/\s+/)
@@ -153,9 +166,8 @@ export default class ChatPlugin extends Plugin {
     args.push(...extraArgs);
 
 
-    const shellMode = this.settings.shellMode ?? "native";
     const options: Record<string, unknown> = { shell: false };
-    let command = binary;
+    let command = resolvedBinary;
     let finalArgs = args;
 
     if (shellMode === "wsl") {
@@ -170,7 +182,8 @@ export default class ChatPlugin extends Plugin {
       if (this.settings.wslUseBash) {
         console.warn("WSL bash wrapper is deprecated for security reasons; running binary directly.");
       }
-      wslArgs.push(binary, ...args);
+      const wslPathPrefix = "$HOME/.local/bin:$HOME/bin:$PATH";
+      wslArgs.push("env", `PATH=${wslPathPrefix}`, resolvedBinary, ...args);
       command = "wsl";
       finalArgs = wslArgs;
     } else if (cwd) {
@@ -179,6 +192,7 @@ export default class ChatPlugin extends Plugin {
 
     return { command, args: finalArgs, options };
   }
+
 
   private tryResolveBinary(preferred: string): string | null {
     const cmd = process.platform === "win32" ? "where" : "which";
@@ -223,20 +237,40 @@ export default class ChatPlugin extends Plugin {
     return resolved ?? candidate;
   }
 
+  private resolveBinaryInWsl(binary: string): string | null {
+    const trimmed = binary?.trim?.();
+    if (!trimmed) return null;
+    if (trimmed.startsWith("/")) {
+      return trimmed;
+    }
+    const result = spawnSync("wsl", ["command", "-v", trimmed]);
+    if (result.status === 0) {
+      const stdout = result.stdout?.toString?.() ?? "";
+      const candidate = stdout
+        .split(/\r?\n/)
+        .map((s: string) => s.trim())
+        .find((s: string) => s.length > 0);
+      if (candidate) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
   private logDebug(...args: unknown[]): void {
     if (this.settings.debugLogging && typeof console !== "undefined") {
-      const logger = typeof console.debug === "function" ? console.debug : console.log;
-      logger.call(console, "[CLI AI Chat][debug]", ...args);
+      console.debug("[CLI AI Chat][debug]", ...args);
     }
   }
+
 
   runCliCompletion(
     prompt: string,
     onChunk: (chunk: string, fullText: string) => void,
     onError: (errText: string) => void,
     onDone: () => void,
-    onToolEvent?: (evt: any) => void,
-  ): any {
+    onToolEvent?: ToolEventCallback,
+  ): ProcessHandle | null {
     const shellMode = this.settings.shellMode ?? "native";
     const cwd = this.getWorkingDirectory();
 
@@ -252,7 +286,7 @@ export default class ChatPlugin extends Plugin {
       onDone();
       return null;
     }
-    const spawnConfig = config as ClaudeSpawnConfig;
+    const spawnConfig = config;
 
     if (!this.claudeSession) {
       this.claudeSession = new ClaudeStreamSession(

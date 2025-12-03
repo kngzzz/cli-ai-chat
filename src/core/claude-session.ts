@@ -1,10 +1,14 @@
 import type { ChildProcessWithoutNullStreams } from "child_process";
 
-import type { ClaudeSpawnConfig } from "../types";
+import type {
+  ClaudeSpawnConfig,
+  ClaudeStreamEvent,
+  ContentBlock,
+  ToolEventCallback,
+} from "../types";
 
 // Using CommonJS require to avoid bundler complaints at runtime
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-declare const require: any;
+declare const require: NodeJS.Require;
 const { spawn } = require("child_process");
 
 export type ClaudeLogFn = (...args: unknown[]) => void;
@@ -13,7 +17,7 @@ export class ClaudeStreamSession {
   private proc: ChildProcessWithoutNullStreams | null = null;
   private buffer = "";
   private listeners = new Map<
-    (event: any) => void,
+    (event: ClaudeStreamEvent) => void,
     { onDone: () => void; onError: (msg: string) => void }
   >();
 
@@ -39,12 +43,13 @@ export class ClaudeStreamSession {
     onChunk: (chunk: string, fullText: string) => void,
     onError: (errText: string) => void,
     onDone: () => void,
-    onToolEvent?: (evt: any) => void,
+    onToolEvent?: ToolEventCallback,
   ): void {
     try {
       this.ensureProcess();
-    } catch (e: any) {
-      onError(`Failed to start Claude process: ${e?.message ?? String(e)}`);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      onError(`Failed to start Claude process: ${message}`);
       onDone();
       return;
     }
@@ -60,9 +65,9 @@ export class ClaudeStreamSession {
         this.listeners.delete(handler);
       }
     };
-    const handler = (evt: any) => {
+    const handler = (evt: ClaudeStreamEvent): void => {
       if (evt?.type === "assistant" && Array.isArray(evt.message?.content)) {
-        for (const block of evt.message.content as any[]) {
+        for (const block of evt.message.content as ContentBlock[]) {
           if (block.type === "text" && block.text) {
             fullText += block.text;
             onChunk(block.text, fullText);
@@ -93,9 +98,10 @@ export class ClaudeStreamSession {
 
     try {
       this.proc.stdin.write(JSON.stringify(msg) + "\n");
-    } catch (e: any) {
+    } catch (e: unknown) {
       cleanup();
-      onError(`Failed to write to Claude CLI: ${e?.message ?? String(e)}`);
+      const message = e instanceof Error ? e.message : String(e);
+      onError(`Failed to write to Claude CLI: ${message}`);
       onDone();
     }
   }

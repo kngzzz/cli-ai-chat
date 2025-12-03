@@ -22,7 +22,7 @@ export default class ChatSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "CLI AI Chat" });
+    new Setting(containerEl).setName("CLI AI Chat").setHeading();
 
 
     new Setting(containerEl)
@@ -31,8 +31,8 @@ export default class ChatSettingTab extends PluginSettingTab {
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.autoDetectBinaries)
-          .onChange(async (value) => {
-            await this.plugin.settingsStore.update({ autoDetectBinaries: value });
+          .onChange((value) => {
+            void this.plugin.settingsStore.update({ autoDetectBinaries: value });
           }),
       );
 
@@ -42,12 +42,12 @@ export default class ChatSettingTab extends PluginSettingTab {
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.confirmBeforeRun)
-          .onChange(async (value) => {
-            await this.plugin.settingsStore.update({ confirmBeforeRun: value });
+          .onChange((value) => {
+            void this.plugin.settingsStore.update({ confirmBeforeRun: value });
           }),
       );
 
-    containerEl.createEl("h3", { text: "Claude CLI" });
+    new Setting(containerEl).setName("Claude CLI").setHeading();
 
 
     new Setting(containerEl)
@@ -57,13 +57,13 @@ export default class ChatSettingTab extends PluginSettingTab {
         text
           .setPlaceholder("claude")
           .setValue(this.plugin.settings.claudeBinary)
-          .onChange(async (value) => {
+          .onChange((value) => {
             const sanitized = sanitizeBinaryInput(value);
             if (value.trim().length > 0 && !sanitized) {
               new Notice("Invalid binary name. Use letters, numbers, dots, underscores, or hyphens.");
               return;
             }
-            await this.plugin.settingsStore.update({
+            void this.plugin.settingsStore.update({
               claudeBinary: sanitized ?? DEFAULT_SETTINGS.claudeBinary,
             });
           }),
@@ -78,8 +78,8 @@ export default class ChatSettingTab extends PluginSettingTab {
         text
           .setPlaceholder("--output-format text")
           .setValue(this.plugin.settings.claudeExtraArgs)
-          .onChange(async (value) => {
-            await this.plugin.settingsStore.update({ claudeExtraArgs: value });
+          .onChange((value) => {
+            void this.plugin.settingsStore.update({ claudeExtraArgs: value });
           }),
       );
 
@@ -89,22 +89,23 @@ export default class ChatSettingTab extends PluginSettingTab {
       .addDropdown((dropdown) => {
         CLAUDE_MODEL_OPTIONS.forEach((option) => dropdown.addOption(option.id, option.label));
         dropdown.setValue(this.plugin.settings.claudeModel ?? DEFAULT_SETTINGS.claudeModel);
-        dropdown.onChange(async (value) => {
+        dropdown.onChange((value) => {
           const match = CLAUDE_MODEL_OPTIONS.find((option) => option.id === value);
           const nextModel = match ? match.id : DEFAULT_SETTINGS.claudeModel;
-          await this.plugin.settingsStore.update({ claudeModel: nextModel });
-          this.plugin.app.workspace
-            .getLeavesOfType(VIEW_TYPE_CLI_CHAT)
-            .forEach((leaf: WorkspaceLeaf) => {
-              const view = leaf.view;
-              if (view instanceof ChatView) {
-                view.refreshModelSelector();
-              }
-            });
+          void this.plugin.settingsStore.update({ claudeModel: nextModel }).then(() => {
+            this.plugin.app.workspace
+              .getLeavesOfType(VIEW_TYPE_CLI_CHAT)
+              .forEach((leaf: WorkspaceLeaf) => {
+                const view = leaf.view;
+                if (view instanceof ChatView) {
+                  view.refreshModelSelector();
+                }
+              });
+          });
         });
       });
- 
-    containerEl.createEl("h3", { text: "Working directory" });
+
+    new Setting(containerEl).setName("Working directory").setHeading();
 
 
     new Setting(containerEl)
@@ -117,10 +118,11 @@ export default class ChatSettingTab extends PluginSettingTab {
           .addOption("vault", "Vault folder")
           .addOption("custom", "Custom path")
           .setValue(this.plugin.settings.workingDirectoryMode)
-          .onChange(async (value: string) => {
+          .onChange((value: string) => {
             const mode: "vault" | "custom" = value === "custom" ? "custom" : "vault";
-            await this.plugin.settingsStore.update({ workingDirectoryMode: mode });
-            this.display();
+            void this.plugin.settingsStore.update({ workingDirectoryMode: mode }).then(() => {
+              this.display();
+            });
           }),
       );
 
@@ -134,10 +136,11 @@ export default class ChatSettingTab extends PluginSettingTab {
           .addOption("native", "Native (Windows/macOS/Linux)")
           .addOption("wsl", "WSL (Windows only)")
           .setValue(this.plugin.settings.shellMode ?? "native")
-          .onChange(async (value: string) => {
+          .onChange((value: string) => {
             const mode: "native" | "wsl" = value === "wsl" ? "wsl" : "native";
-            await this.plugin.settingsStore.update({ shellMode: mode });
-            this.display();
+            void this.plugin.settingsStore.update({ shellMode: mode }).then(() => {
+              this.display();
+            });
           }),
       );
 
@@ -150,8 +153,8 @@ export default class ChatSettingTab extends PluginSettingTab {
         .addToggle((toggle) =>
           toggle
             .setValue(this.plugin.settings.wslUseBash)
-            .onChange(async (value) => {
-              await this.plugin.settingsStore.update({ wslUseBash: value });
+            .onChange((value) => {
+              void this.plugin.settingsStore.update({ wslUseBash: value });
             }),
         );
     }
@@ -164,18 +167,18 @@ export default class ChatSettingTab extends PluginSettingTab {
           text
             .setPlaceholder("/path/to/project")
             .setValue(this.plugin.settings.customWorkingDirectory)
-            .onChange(async (value) => {
+            .onChange((value) => {
               const sanitized = sanitizeWorkingDirectoryInput(value ?? "");
               if (value.trim().length > 0 && !sanitized) {
                 new Notice("Enter an absolute path without '..' segments.");
                 return;
               }
-              await this.plugin.settingsStore.update({ customWorkingDirectory: sanitized ?? "" });
+              void this.plugin.settingsStore.update({ customWorkingDirectory: sanitized ?? "" });
             }),
         );
     }
 
-    containerEl.createEl("h3", { text: "Context" });
+    new Setting(containerEl).setName("Context").setHeading();
 
     new Setting(containerEl)
       .setName("Include file context")
@@ -183,8 +186,8 @@ export default class ChatSettingTab extends PluginSettingTab {
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.includeFileContext)
-          .onChange(async (value) => {
-            await this.plugin.settingsStore.update({ includeFileContext: value });
+          .onChange((value) => {
+            void this.plugin.settingsStore.update({ includeFileContext: value });
           }),
       );
 
@@ -194,8 +197,8 @@ export default class ChatSettingTab extends PluginSettingTab {
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.includeSelection)
-          .onChange(async (value) => {
-            await this.plugin.settingsStore.update({ includeSelection: value });
+          .onChange((value) => {
+            void this.plugin.settingsStore.update({ includeSelection: value });
           }),
       );
 
@@ -206,15 +209,15 @@ export default class ChatSettingTab extends PluginSettingTab {
         text
           .setPlaceholder(String(DEFAULT_SETTINGS.selectionCharLimit))
           .setValue(String(this.plugin.settings.selectionCharLimit))
-          .onChange(async (value) => {
+          .onChange((value) => {
             const n = Number(value);
             if (!Number.isNaN(n) && n > 0) {
-              await this.plugin.settingsStore.update({ selectionCharLimit: n });
+              void this.plugin.settingsStore.update({ selectionCharLimit: n });
             }
           }),
       );
 
-    containerEl.createEl("h3", { text: "Conversation" });
+    new Setting(containerEl).setName("Conversation").setHeading();
 
     new Setting(containerEl)
       .setName("Max history messages")
@@ -225,10 +228,10 @@ export default class ChatSettingTab extends PluginSettingTab {
         text
           .setPlaceholder("6")
           .setValue(String(this.plugin.settings.maxHistoryMessages))
-          .onChange(async (value) => {
+          .onChange((value) => {
             const n = Number(value);
             if (!Number.isNaN(n) && n > 0 && n <= 50) {
-              await this.plugin.settingsStore.update({ maxHistoryMessages: n });
+              void this.plugin.settingsStore.update({ maxHistoryMessages: n });
             }
           }),
       );
@@ -239,21 +242,21 @@ export default class ChatSettingTab extends PluginSettingTab {
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.compactToolCalls)
-          .onChange(async (value) => {
-            await this.plugin.settingsStore.update({ compactToolCalls: value });
-          this.plugin.app.workspace
-            .getLeavesOfType(VIEW_TYPE_CLI_CHAT)
-            .forEach((leaf: WorkspaceLeaf) => {
-              const view = leaf.view;
-              if (view instanceof ChatView) {
-                view.handleCompactSettingChange();
-              }
+          .onChange((value) => {
+            void this.plugin.settingsStore.update({ compactToolCalls: value }).then(() => {
+              this.plugin.app.workspace
+                .getLeavesOfType(VIEW_TYPE_CLI_CHAT)
+                .forEach((leaf: WorkspaceLeaf) => {
+                  const view = leaf.view;
+                  if (view instanceof ChatView) {
+                    view.handleCompactSettingChange();
+                  }
+                });
             });
-
           }),
       );
- 
-    containerEl.createEl("h3", { text: "Export & diagnostics" });
+
+    new Setting(containerEl).setName("Export & diagnostics").setHeading();
 
 
     new Setting(containerEl)
@@ -263,8 +266,8 @@ export default class ChatSettingTab extends PluginSettingTab {
         text
           .setPlaceholder(DEFAULT_SETTINGS.exportFolder)
           .setValue(this.plugin.settings.exportFolder)
-          .onChange(async (value) => {
-            await this.plugin.settingsStore.update({ exportFolder: value });
+          .onChange((value) => {
+            void this.plugin.settingsStore.update({ exportFolder: value });
           }),
       );
 
@@ -274,8 +277,8 @@ export default class ChatSettingTab extends PluginSettingTab {
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.debugLogging)
-          .onChange(async (value) => {
-            await this.plugin.settingsStore.update({ debugLogging: value });
+          .onChange((value) => {
+            void this.plugin.settingsStore.update({ debugLogging: value });
           }),
       );
 
@@ -286,15 +289,15 @@ export default class ChatSettingTab extends PluginSettingTab {
         text
           .setPlaceholder(String(DEFAULT_SETTINGS.cliTimeoutMs))
           .setValue(String(this.plugin.settings.cliTimeoutMs))
-          .onChange(async (value) => {
+          .onChange((value) => {
             const n = Number(value);
             if (!Number.isNaN(n) && n >= 5000) {
-              await this.plugin.settingsStore.update({ cliTimeoutMs: n });
+              void this.plugin.settingsStore.update({ cliTimeoutMs: n });
             }
           }),
       );
 
-    containerEl.createEl("h3", { text: "Claude commands & skills" });
+    new Setting(containerEl).setName("Claude commands & skills").setHeading();
 
     new Setting(containerEl)
       .setName("Starter files")
@@ -302,10 +305,11 @@ export default class ChatSettingTab extends PluginSettingTab {
       .addButton((button) =>
         button
           .setButtonText("Create starter files")
-          .onClick(async () => {
-            await this.plugin.ensureClaudeStarterAssets(true);
-            new Notice("Starter Claude commands and skills added (if missing).");
-            this.display();
+          .onClick(() => {
+            void this.plugin.ensureClaudeStarterAssets(true).then(() => {
+              new Notice("Starter Claude commands and skills added (if missing).");
+              this.display();
+            });
           }),
       );
 

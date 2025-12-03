@@ -1,9 +1,11 @@
 import {
+  App,
   FileSystemAdapter,
   ItemView,
   MarkdownRenderer,
   MarkdownView,
   Menu,
+  Modal,
   Notice,
   setIcon,
   TAbstractFile,
@@ -24,9 +26,64 @@ import {
   PlanMeta,
   MAX_RENDERED_MESSAGES,
   CLAUDE_MODEL_OPTIONS,
+  ProcessHandle,
+  ToolEventPayload,
+  ContentBlock,
 } from "../types";
 import { BUILTIN_SLASH_COMMANDS, collectClaudeCommandNames } from "../commands";
 import { buildChatPrompt } from "../utils/prompt";
+
+class ConfirmModal extends Modal {
+  private resolved = false;
+  private resolvePromise: ((value: boolean) => void) | null = null;
+
+  constructor(
+    app: App,
+    private message: string,
+  ) {
+    super(app);
+  }
+
+  onOpen(): void {
+    const { contentEl } = this;
+    contentEl.createEl("p", { text: this.message });
+
+    const buttonContainer = contentEl.createDiv({ cls: "modal-button-container" });
+
+    const confirmBtn = buttonContainer.createEl("button", {
+      text: "Confirm",
+      cls: "mod-cta",
+    });
+    confirmBtn.addEventListener("click", () => {
+      this.resolved = true;
+      this.resolvePromise?.(true);
+      this.close();
+    });
+
+    const cancelBtn = buttonContainer.createEl("button", { text: "Cancel" });
+    cancelBtn.addEventListener("click", () => {
+      this.resolved = true;
+      this.resolvePromise?.(false);
+      this.close();
+    });
+  }
+
+  onClose(): void {
+    if (!this.resolved) {
+      this.resolvePromise?.(false);
+    }
+    this.contentEl.empty();
+  }
+
+  waitForResult(): Promise<boolean> {
+    this.resolved = false;
+    this.resolvePromise = null;
+    return new Promise<boolean>((resolve) => {
+      this.resolvePromise = resolve;
+      this.open();
+    });
+  }
+}
 
 export default class ChatView extends ItemView {
   plugin: ChatPlugin;
@@ -50,7 +107,7 @@ export default class ChatView extends ItemView {
   slashListEl!: HTMLElement;
 
   messages: ChatMessage[] = [];
-  currentProcess: any | null = null;
+  currentProcess: ProcessHandle | null = null;
   isStreaming = false;
 
   private mentionTriggerIndex = -1;
@@ -88,6 +145,7 @@ export default class ChatView extends ItemView {
     return "bot";
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await -- Obsidian API requires Promise<void> return type
   async onOpen(): Promise<void> {
     this.containerEl.empty();
 
@@ -153,18 +211,19 @@ export default class ChatView extends ItemView {
       attr: { "aria-label": "Export chat to Markdown" },
     });
     setIcon(exportBtn, "download");
-    exportBtn.addEventListener("click", async () => {
+    exportBtn.addEventListener("click", () => {
       if (this.messages.length === 0) {
         new Notice("Nothing to export yet.");
         return;
       }
-      try {
-        const path = await this.plugin.exportConversation(this.messages);
-        new Notice(`Chat exported to ${path}`);
-      } catch (err) {
-        console.error(err);
-        new Notice("Failed to export chat.");
-      }
+      void this.plugin.exportConversation(this.messages)
+        .then((path: string) => {
+          new Notice(`Chat exported to ${path}`);
+        })
+        .catch((err: unknown) => {
+          console.error(err);
+          new Notice("Failed to export chat.");
+        });
     });
 
     this.messagesWrapperEl = this.container.createDiv("cli-ai-chat-messages-wrapper");
@@ -220,9 +279,9 @@ export default class ChatView extends ItemView {
     this.inputEl.addEventListener("input", () => {
       this.checkSlashTrigger();
       this.checkMentionTrigger();
-      // Auto-resize
-      this.inputEl.style.height = "auto";
-      this.inputEl.style.height = `${this.inputEl.scrollHeight}px`;
+      // Auto-resize using CSS custom property
+      this.inputEl.setCssProps({ "--input-height": "auto" });
+      this.inputEl.setCssProps({ "--input-height": `${this.inputEl.scrollHeight}px` });
     });
 
     this.inputEl.addEventListener("click", () => {
@@ -246,6 +305,7 @@ export default class ChatView extends ItemView {
   }
 
 
+  // eslint-disable-next-line @typescript-eslint/require-await -- Obsidian API requires Promise<void> return type
   async onClose(): Promise<void> {
     this.stopStreaming();
     if (this.unsubscribeSettings) {
@@ -362,7 +422,7 @@ export default class ChatView extends ItemView {
 
   refreshModelSelector(): void {
     if (!this.modelSelectEl) return;
-    this.modelSelectEl.style.display = "";
+    this.modelSelectEl.removeClass("cli-ai-chat-hidden");
     this.modelSelectEl.textContent = `Model: ${this.getClaudeModelLabel(this.plugin.settings.claudeModel)}`;
   }
 
@@ -420,7 +480,7 @@ export default class ChatView extends ItemView {
   }
 
   private showClaudeModelMenu(evt: MouseEvent): void {
-    const menu = new Menu(this.app);
+    const menu = new Menu();
     const current = this.plugin.settings.claudeModel;
     CLAUDE_MODEL_OPTIONS.forEach((option) => {
       menu.addItem((item) => {
@@ -637,7 +697,7 @@ export default class ChatView extends ItemView {
       return;
     }
     const before = this.inputEl.value.slice(0, cursor);
-    const match = before.match(/(^|[\s\(\[])@([\w\-\/.]*)$/);
+    const match = before.match(/(^|[\s([])@([\w\-/.]*)$/);
     if (!match) {
       this.hideMentionMenu();
       return;
@@ -852,9 +912,7 @@ export default class ChatView extends ItemView {
         const nodes = this.messagesEl.getElementsByClassName("cli-ai-chat-message");
         const node = nodes.item(i);
         if (node) {
-          const bubble = node.querySelector(
-            ".cli-ai-chat-bubble",
-          ) as HTMLElement | null;
+          const bubble = node.querySelector<HTMLElement>(".cli-ai-chat-bubble");
           if (bubble) {
             this.renderMessageMarkdown(bubble, text);
           }
@@ -866,7 +924,7 @@ export default class ChatView extends ItemView {
   }
 
 
-  private handleToolEvent(evt: { type: string; block: any; raw?: any }): void {
+  private handleToolEvent(evt: ToolEventPayload): void {
     const kind = evt?.type;
     if (!kind) return;
 
@@ -881,8 +939,10 @@ export default class ChatView extends ItemView {
     const toolName = block.name ?? "Tool";
 
     if (kind === "tool_use") {
-      const cmd = block.input?.command ?? block.input?.cmd;
-      const path = block.input?.file_path ?? block.input?.path;
+      const rawCmd = block.input?.command ?? block.input?.cmd;
+      const rawPath = block.input?.file_path ?? block.input?.path;
+      const cmd = typeof rawCmd === "string" ? rawCmd : undefined;
+      const path = typeof rawPath === "string" ? rawPath : undefined;
       const title = block.display ?? block.title ?? block.name ?? (cmd ? `Run: ${cmd}` : undefined);
       const description = this.describeToolUse(block);
       const msg: ChatMessage = {
@@ -944,18 +1004,14 @@ export default class ChatView extends ItemView {
     const nodes = this.messagesEl.getElementsByClassName("cli-ai-chat-message");
     const node = nodes.item(index);
     if (node) {
-      const bubble = node.querySelector(
-        ".cli-ai-chat-bubble",
-      ) as HTMLElement | null;
+      const bubble = node.querySelector<HTMLElement>(".cli-ai-chat-bubble");
       if (bubble) {
-        const statusEl = bubble.querySelector(
-          ".cli-ai-chat-tool-status",
-        ) as HTMLElement | null;
+        const statusEl = bubble.querySelector<HTMLElement>(".cli-ai-chat-tool-status");
         if (statusEl && status) {
           statusEl.textContent = status.toUpperCase();
           statusEl.className = "cli-ai-chat-tool-status cli-ai-chat-tool-status-" + status;
         }
-        const body = bubble.querySelector(".cli-ai-chat-tool-body") as HTMLElement | null;
+        const body = bubble.querySelector<HTMLElement>(".cli-ai-chat-tool-body");
         if (body) {
           body.textContent = text;
         }
@@ -964,7 +1020,7 @@ export default class ChatView extends ItemView {
     this.scrollToBottom();
   }
 
-  private recordToolSummaryEvent(kind: string, block: any): void {
+  private recordToolSummaryEvent(kind: string, block: Partial<ContentBlock>): void {
     if (kind !== "tool_use" && kind !== "tool_result") return;
     const summary = this.ensureToolSummaryState();
     if (kind === "tool_use") {
@@ -1017,7 +1073,7 @@ export default class ChatView extends ItemView {
     const nodes = this.messagesEl.getElementsByClassName("cli-ai-chat-message");
     const node = nodes.item(index);
     if (node) {
-      const bubble = node.querySelector(".cli-ai-chat-bubble") as HTMLElement | null;
+      const bubble = node.querySelector<HTMLElement>(".cli-ai-chat-bubble");
       if (bubble) {
         this.renderMessageMarkdown(bubble, text);
       }
@@ -1090,30 +1146,39 @@ export default class ChatView extends ItemView {
     this.updateToolSummaryMessage();
   }
 
-  private describeToolUse(block: any): string {
+  private describeToolUse(block: Partial<ContentBlock>): string {
     if (!block) return "Tool call";
-    if (typeof block.input === "string") return block.input;
-    const cmd = block.input?.command ?? block.input?.cmd;
-    if (cmd) return cmd;
-    const file = block.input?.file_path ?? block.input?.path;
-    if (file) return file;
+    const input = block.input as Record<string, unknown> | string | undefined;
+    if (typeof input === "string") return input;
+    const cmd = (input as Record<string, unknown>)?.command ?? (input as Record<string, unknown>)?.cmd;
+    if (cmd && typeof cmd === "string") return cmd;
+    const file = (input as Record<string, unknown>)?.file_path ?? (input as Record<string, unknown>)?.path;
+    if (file && typeof file === "string") return file;
     return "Tool call";
   }
 
-  private describeToolResult(block: any): string {
-    const out = block?.output ?? block?.result ?? block?.text ?? block;
+  private describeToolResult(block: Partial<ContentBlock>): string {
+    const out: unknown = block?.output ?? block?.result ?? block?.text ?? block;
     if (typeof out === "string") return out;
     if (Array.isArray(out)) {
       return out
-        .map((item) => {
+        .map((item: unknown) => {
           if (typeof item === "string") return item;
-          if (item?.text) return item.text;
+          if (item && typeof item === "object" && "text" in item && typeof (item as { text: unknown }).text === "string") {
+            return (item as { text: string }).text;
+          }
           return JSON.stringify(item);
         })
         .join("\n");
     }
-    if (out?.text) return out.text;
-    if (out?.stdout) return out.stdout;
+    if (out && typeof out === "object") {
+      if ("text" in out && typeof (out as { text: unknown }).text === "string") {
+        return (out as { text: string }).text;
+      }
+      if ("stdout" in out && typeof (out as { stdout: unknown }).stdout === "string") {
+        return (out as { stdout: string }).stdout;
+      }
+    }
     return JSON.stringify(out);
   }
 
@@ -1183,7 +1248,8 @@ export default class ChatView extends ItemView {
     }
 
     if (this.plugin.settings.confirmBeforeRun) {
-      const ok = window.confirm("Run this command with the configured CLI?");
+      const modal = new ConfirmModal(this.app, "Run this command with the configured CLI?");
+      const ok = await modal.waitForResult();
       if (!ok) {
         if (this.messages.length === 0) {
           this.renderEmptyState();
@@ -1252,14 +1318,15 @@ export default class ChatView extends ItemView {
           this.setUiBusy(false);
           this.currentProcess = null;
         },
-        (toolEvt: any) => this.handleToolEvent(toolEvt),
+        (toolEvt: ToolEventPayload) => this.handleToolEvent(toolEvt),
       );
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
       console.error("CLI AI Chat error:", e);
       const errorMsg: ChatMessage = {
         id: `m-${Date.now()}-error`,
         role: "error",
-        text: `Failed to start CLI: ${e?.message ?? String(e)}`,
+        text: `Failed to start CLI: ${message}`,
         timestamp: Date.now(),
       };
       this.appendMessage(errorMsg);
@@ -1275,7 +1342,7 @@ export default class ChatView extends ItemView {
     const arg = parts[1]?.toLowerCase() ?? "";
 
     switch (command) {
-      case "help":
+      case "help": {
         const claudeCommands = this.slashCommandIndex
           .filter((item) => item.source === "claude")
           .map((item) => `/${item.name}`)
@@ -1287,13 +1354,15 @@ export default class ChatView extends ItemView {
             claudePart,
         );
         return true;
+      }
       case "context": {
         let next = this.plugin.settings.includeFileContext;
         if (arg === "on") next = true;
         else if (arg === "off") next = false;
         else next = !next;
-        void this.plugin.settingsStore.update({ includeFileContext: next });
-        this.contextToggleEl.textContent = next ? "Context: On" : "Context: Off";
+        void this.plugin.settingsStore.update({ includeFileContext: next }).then(() => {
+          this.refreshContextToggle();
+        });
         new Notice(`Context ${next ? "enabled" : "disabled"}.`);
         return true;
       }
@@ -1418,40 +1487,42 @@ export default class ChatView extends ItemView {
     // Card 1: Initialize
     const initCard = cards.createDiv("cli-ai-welcome-card");
     initCard.createDiv("cli-ai-card-icon").setText("🚀");
-    initCard.createEl("h3", { text: "Initialize Workspace" });
+    initCard.createEl("h3", { text: "Initialize workspace" });
     initCard.createEl("p", { text: "Create standard skills and commands." });
-    initCard.addEventListener("click", async () => {
-      await this.plugin.ensureClaudeStarterAssets(true);
-      this.messagesEl.empty();
-      this.appendMessage({
-        id: `system-${Date.now()}`,
-        role: "assistant",
-        text: "Workspace initialized! I've added standard commands and skills to your vault. Type `/` to see them.",
-        timestamp: Date.now(),
+    initCard.addEventListener("click", () => {
+      void this.plugin.ensureClaudeStarterAssets(true).then(() => {
+        this.messagesEl.empty();
+        this.appendMessage({
+          id: `system-${Date.now()}`,
+          role: "assistant",
+          text: "Workspace initialized! I've added standard commands and skills to your vault. Type `/` to see them.",
+          timestamp: Date.now(),
+        });
       });
     });
 
     // Card 2: Context
     const contextCard = cards.createDiv("cli-ai-welcome-card");
     contextCard.createDiv("cli-ai-card-icon").setText("📝");
-    contextCard.createEl("h3", { text: "Summarize Note" });
+    contextCard.createEl("h3", { text: "Summarize note" });
     contextCard.createEl("p", { text: "Use current file as context." });
-    contextCard.addEventListener("click", async () => {
+    contextCard.addEventListener("click", () => {
       const activeFile = this.app.workspace.getActiveFile();
       if (!activeFile) {
         new Notice("No active note.");
         return;
       }
-      await this.plugin.settingsStore.update({ includeFileContext: true });
-      this.refreshContextToggle();
-      this.inputEl.value = "Summarize this note.";
-      void this.handleSend();
+      void this.plugin.settingsStore.update({ includeFileContext: true }).then(() => {
+        this.refreshContextToggle();
+        this.inputEl.value = "Summarize this note.";
+        void this.handleSend();
+      });
     });
 
     // Card 3: Create Skill
     const skillCard = cards.createDiv("cli-ai-welcome-card");
     skillCard.createDiv("cli-ai-card-icon").setText("🛠️");
-    skillCard.createEl("h3", { text: "Create Skill" });
+    skillCard.createEl("h3", { text: "Create skill" });
     skillCard.createEl("p", { text: "Teach Claude new tricks." });
     skillCard.addEventListener("click", () => {
       this.inputEl.value = "/createskill ";

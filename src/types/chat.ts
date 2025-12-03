@@ -16,8 +16,9 @@ export type ToolMeta = {
 export const CLAUDE_MODEL_OPTIONS = [
   { id: "default", label: "Default (recommended)" },
   { id: "sonnet", label: "Sonnet 4.5" },
+  { id: "opus", label: "Opus 4.5" },
   { id: "haiku", label: "Haiku" },
-  { id: "opus", label: "Opus 4.1" },
+  { id: "sonnet[1m]", label: "Sonnet 4.5 (1M context)" },
   { id: "opusplan", label: "Opus Plan (plan w/ Opus, execute w/ Sonnet)" },
 ] as const;
 
@@ -116,3 +117,39 @@ export const DEFAULT_SETTINGS: ChatSettings = {
 
 export const BINARY_NAME_REGEX = /^[a-zA-Z0-9._-]+$/;
 export const MAX_RENDERED_MESSAGES = 200;
+
+// Claude CLI streaming event types
+export type ClaudeStreamEvent = {
+  type: "assistant" | "result";
+  message?: { content?: ContentBlock[] };
+};
+
+export type ContentBlock = {
+  type: "text" | "tool_use" | "tool_result";
+  text?: string;
+  id?: string;
+  tool_use_id?: string;
+  name?: string;
+  input?: Record<string, unknown>;
+  display?: string;
+  title?: string;
+  is_error?: boolean;
+  error?: boolean;
+  exit_code?: number;
+  output?: unknown;
+  result?: unknown;
+  stdout?: string;
+  [key: string]: unknown;
+};
+
+export type ToolEventPayload = {
+  type: "tool_use" | "tool_result";
+  block: Partial<ContentBlock>;
+  raw?: ClaudeStreamEvent;
+};
+
+export type ToolEventCallback = (evt: ToolEventPayload) => void;
+
+export type ProcessHandle = {
+  kill: (signal?: string) => void;
+};
