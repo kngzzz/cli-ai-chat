@@ -179,11 +179,7 @@ export default class ChatPlugin extends Plugin {
       if (cwd) {
         wslArgs.push("--cd", toWslPath(cwd));
       }
-      if (this.settings.wslUseBash) {
-        console.warn("WSL bash wrapper is deprecated for security reasons; running binary directly.");
-      }
-      const wslPathPrefix = "$HOME/.local/bin:$HOME/bin:$PATH";
-      wslArgs.push("env", `PATH=${wslPathPrefix}`, resolvedBinary, ...args);
+      wslArgs.push(resolvedBinary, ...args);
       command = "wsl";
       finalArgs = wslArgs;
     } else if (cwd) {
