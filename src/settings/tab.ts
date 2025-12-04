@@ -22,9 +22,6 @@ export default class ChatSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    new Setting(containerEl).setName("General").setHeading();
-
-
     new Setting(containerEl)
       .setName("Auto-detect binaries")
       .setDesc("Try to resolve CLI binaries with which/where when the path is blank.")
