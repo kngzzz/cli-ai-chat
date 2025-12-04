@@ -82,7 +82,7 @@ export default class ChatPlugin extends Plugin {
     await this.ensureViewExists();
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CLI_CHAT);
     if (leaves.length > 0) {
-      this.app.workspace.revealLeaf(leaves[0]);
+      void this.app.workspace.revealLeaf(leaves[0]);
     }
   }
 
@@ -146,7 +146,7 @@ export default class ChatPlugin extends Plugin {
 
     if (shellMode === "wsl" && !binary) {
       return {
-        error: `Could not find \"${preferredBinary}\" in WSL PATH. Set Binary to a full path or install the CLI in WSL.`,
+        error: `Could not find "${preferredBinary}" in WSL PATH. Set Binary to a full path or install the CLI in WSL.`,
       };
     }
 

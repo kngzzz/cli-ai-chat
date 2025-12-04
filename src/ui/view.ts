@@ -176,7 +176,7 @@ export default class ChatView extends ItemView {
 
     this.contextToggleEl = headerActions.createEl("button", {
       cls: "cli-ai-chat-icon-button",
-      attr: { "aria-label": "Toggle Context" },
+      attr: { "aria-label": "Toggle context" },
     });
     this.contextToggleEl.addEventListener("click", () => {
       const next = !this.plugin.settings.includeFileContext;
@@ -970,7 +970,7 @@ export default class ChatView extends ItemView {
       const status: ToolStatus = block.is_error || block.error ? "error" : "done";
       const exitCode = typeof block.exit_code === "number" ? block.exit_code : undefined;
       const existingIndex = this.messages.findIndex(
-        (m) => m.meta?.kind === "tool_call" && (m.meta as ToolMeta).toolId === toolId,
+        (m) => m.meta?.kind === "tool_call" && m.meta?.toolId === toolId,
       );
       if (existingIndex >= 0) {
         this.updateToolMessage(existingIndex, text, status, exitCode);

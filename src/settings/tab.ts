@@ -22,7 +22,7 @@ export default class ChatSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    new Setting(containerEl).setName("CLI AI Chat").setHeading();
+    new Setting(containerEl).setName("General").setHeading();
 
 
     new Setting(containerEl)
@@ -87,7 +87,9 @@ export default class ChatSettingTab extends PluginSettingTab {
       .setName("Claude model")
       .setDesc("Choose which Claude Code model to run for chats.")
       .addDropdown((dropdown) => {
-        CLAUDE_MODEL_OPTIONS.forEach((option) => dropdown.addOption(option.id, option.label));
+        CLAUDE_MODEL_OPTIONS.forEach((option) => {
+          dropdown.addOption(option.id, option.label);
+        });
         dropdown.setValue(this.plugin.settings.claudeModel ?? DEFAULT_SETTINGS.claudeModel);
         dropdown.onChange((value) => {
           const match = CLAUDE_MODEL_OPTIONS.find((option) => option.id === value);

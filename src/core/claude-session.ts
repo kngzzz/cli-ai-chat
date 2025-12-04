@@ -3,7 +3,6 @@ import type { ChildProcessWithoutNullStreams } from "child_process";
 import type {
   ClaudeSpawnConfig,
   ClaudeStreamEvent,
-  ContentBlock,
   ToolEventCallback,
 } from "../types";
 
@@ -67,7 +66,7 @@ export class ClaudeStreamSession {
     };
     const handler = (evt: ClaudeStreamEvent): void => {
       if (evt?.type === "assistant" && Array.isArray(evt.message?.content)) {
-        for (const block of evt.message.content as ContentBlock[]) {
+        for (const block of evt.message.content) {
           if (block.type === "text" && block.text) {
             fullText += block.text;
             onChunk(block.text, fullText);
