@@ -81,16 +81,115 @@ Access settings via **Settings → CLI AI Chat**
 
 ## Troubleshooting
 
-### CLI not found
-- Verify installation: `claude --version`
-- Set full path in settings: `/usr/local/bin/claude` or `C:\Users\<you>\AppData\Roaming\npm\claude.cmd`
+### Claude CLI not found
 
-### WSL errors (Windows)
-- Enable **WSL** execution mode in settings
-- Vault paths convert automatically (`C:\vault` → `/mnt/c/vault`)
+**Verify Claude is installed and working:**
+```bash
+claude --version
+```
+
+If this fails, install Claude Code CLI following the [official instructions](https://docs.anthropic.com/en/docs/claude-code).
+
+**Common causes:**
+
+| Platform | Issue | Solution |
+|----------|-------|----------|
+| Windows | npm global path not in PATH | Set full path: `C:\Users\<you>\AppData\Roaming\npm\claude.cmd` |
+| Windows | Using nvm/fnm | Check `npm config get prefix` and use that path |
+| macOS | Homebrew path missing | Add `/opt/homebrew/bin` to PATH or set full path |
+| Linux | Local install not in PATH | Set path: `~/.local/bin/claude` or `/usr/local/bin/claude` |
+
+**Finding the binary location:**
+```bash
+# Windows (PowerShell)
+Get-Command claude | Select-Object Source
+
+# Windows (cmd)
+where claude
+
+# macOS/Linux
+which claude
+```
+
+---
+
+### WSL mode issues (Windows)
+
+WSL mode runs the Claude CLI inside Windows Subsystem for Linux. This is useful when Claude is installed in WSL but not on Windows.
+
+**Claude must be installed inside WSL, not just on Windows:**
+```bash
+# Open WSL terminal and install
+wsl
+npm install -g @anthropic-ai/claude-code
+claude --version
+```
+
+**Check your default WSL distro:**
+```powershell
+wsl --list --verbose
+```
+The distro marked with `*` is the default. Claude must be installed in that distro.
+
+**PATH not working in WSL:**
+
+WSL runs commands non-interactively, so your `.bashrc`/`.zshrc` may not load. Ensure Claude is in a standard PATH location:
+```bash
+# Inside WSL, check where claude is installed
+which claude
+
+# If it's in ~/.local/bin, ensure that's in your PATH
+# Add to ~/.profile (loads for non-interactive shells):
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.profile
+```
+
+**Wrong binary name:**
+
+In settings, try just `claude` (not `claude.cmd` or full path). The plugin will search WSL's PATH.
+
+---
+
+### Authentication errors
+
+Claude CLI requires authentication before first use:
+```bash
+claude auth login
+```
+
+If you see "unauthorized" or "API key" errors, re-authenticate.
+
+---
 
 ### Timeout errors
-- Increase **CLI timeout** in settings for complex tasks
+
+For complex tasks (large file operations, many tool calls), increase **CLI timeout** in settings. Default is 45 seconds; try 120000ms (2 minutes) or higher.
+
+---
+
+### Plugin can't find files in vault
+
+- Ensure **Working directory** is set correctly in settings
+- For WSL mode, paths auto-convert (`C:\vault` → `/mnt/c/vault`)
+- Check that Claude has read permissions for your vault folder
+
+---
+
+### Nothing happens when sending a message
+
+1. Open Developer Tools (`Ctrl+Shift+I` / `Cmd+Option+I`)
+2. Check the Console for errors
+3. Enable **Debug logging** in plugin settings for detailed logs
+4. Verify the CLI works manually: `claude -p "hello"`
+
+---
+
+### Tool calls fail in WSL
+
+If Claude runs but tool calls (file reads, bash commands) fail:
+
+1. Ensure common tools are installed in WSL: `git`, `node`, `python`, etc.
+2. Check that your WSL PATH includes `/usr/bin` and `/bin`
+3. Test manually: `wsl which git`
 
 ## License
 
