@@ -33,7 +33,7 @@ export default class ChatPlugin extends Plugin {
     await this.loadSettings();
 
     if (!Platform.isDesktopApp) {
-      new Notice("CLI AI Chat only works on desktop (needs local CLI binaries).");
+      new Notice("CLI AI chat only works on desktop (needs local CLI binaries).");
       return;
     }
 
@@ -52,7 +52,7 @@ export default class ChatPlugin extends Plugin {
       (leaf) => new ChatView(leaf, this),
     );
 
-    this.addRibbonIcon("bot", "CLI AI Chat", () => {
+    this.addRibbonIcon("bot", "CLI AI chat", () => {
       void this.activateView();
     });
 

@@ -138,7 +138,7 @@ export default class ChatView extends ItemView {
   }
 
   getDisplayText(): string {
-    return "CLI AI Chat";
+    return "CLI AI chat";
   }
 
   getIcon(): string {
@@ -153,7 +153,7 @@ export default class ChatView extends ItemView {
 
     const headerEl = this.container.createDiv("cli-ai-chat-header");
     headerEl.createEl("span", {
-      text: "CLI AI Chat",
+      text: "CLI AI chat",
       cls: "cli-ai-chat-title",
     });
 
@@ -1476,7 +1476,7 @@ export default class ChatView extends ItemView {
     this.messagesEl.empty();
 
     const container = this.messagesEl.createDiv("cli-ai-welcome-container");
-    container.createEl("h2", { text: "CLI AI Chat", cls: "cli-ai-welcome-title" });
+    container.createEl("h2", { text: "CLI AI chat", cls: "cli-ai-welcome-title" });
     container.createEl("p", {
       text: "Your AI coding assistant, right inside Obsidian.",
       cls: "cli-ai-welcome-subtitle",
